@@ -91,6 +91,7 @@ export default function App() {
   const [editingTitle, setEditingTitle] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateInput, setShowCreateInput] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   
   const [isEditingWorkspaceTitle, setIsEditingWorkspaceTitle] = useState(false);
   const [tempWorkspaceTitle, setTempWorkspaceTitle] = useState("");
@@ -488,6 +489,32 @@ export default function App() {
     }
   };
 
+  const handleClearWorkspaceChat = async () => {
+    if (!selectedSessionId) return;
+    if (!confirm("Are you sure you want to clear all messages in this workspace?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${selectedSessionId}/messages`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error("Error clearing chat:", err);
+    }
+  };
+
+  const handleExportChatHistory = () => {
+    if (!selectedSessionId) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(messages, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `chat_history_${selectedSessionId}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
   const handleAskQuestion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!question.trim()) return;
@@ -542,7 +569,7 @@ export default function App() {
           </div>
           <div className="flex flex-col">
             <span className="font-extrabold text-sm md:text-base text-white leading-tight tracking-wide">Data Agent Studio</span>
-            <div className="flex items-center gap-4 text-xs text-zinc-400 mt-1 font-sans relative">
+            <div className="flex items-center gap-5 text-sm mt-1 font-sans relative">
               {/* File Dropdown Trigger */}
               <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <span 
@@ -550,24 +577,24 @@ export default function App() {
                     e.stopPropagation();
                     setActiveNavMenu(activeNavMenu === "file" ? null : "file");
                   }}
-                  className={`hover:text-white cursor-pointer transition py-0.5 px-1.5 rounded font-medium ${
+                  className={`hover:text-white cursor-pointer transition py-1 px-2.5 rounded font-bold text-sm tracking-wide ${
                     activeNavMenu === "file" ? "text-white bg-[#27272a]" : ""
                   }`}
                 >
                   File
                 </span>
                 {activeNavMenu === "file" && (
-                  <div className="absolute left-0 mt-1.5 w-44 bg-[#121214] border border-[#27272a] rounded-lg shadow-xl py-1 z-50 text-xs text-[#e4e4e7]" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute left-0 mt-2.5 w-56 bg-[#121214] border border-[#27272a] rounded-lg shadow-xl py-1 z-50 text-xs text-[#e4e4e7]" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedSessionId(null);
                         setActiveNavMenu(null);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-[#27272a] hover:text-white flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] hover:text-white flex items-center gap-2 font-medium"
                     >
                       <ChevronRight className="w-4 h-4 rotate-180 text-zinc-400" />
-                      Open Workspace
+                      Open Workspace...
                     </button>
                     <button
                       onClick={(e) => {
@@ -577,11 +604,50 @@ export default function App() {
                         setSelectedSessionId(null);
                         setActiveNavMenu(null);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-[#27272a] hover:text-white flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] hover:text-white flex items-center gap-2 font-medium"
                     >
                       <Plus className="w-4 h-4 text-zinc-400" />
-                      New Workspace
+                      New Workspace...
                     </button>
+                    {selectedSessionId && (
+                      <>
+                        <div className="border-t border-[#27272a] my-1" />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTempWorkspaceTitle(sessions.find(s => s.id === selectedSessionId)?.title || "");
+                            setIsEditingWorkspaceTitle(true);
+                            setActiveNavMenu(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] hover:text-white flex items-center gap-2 font-medium"
+                        >
+                          <Edit3 className="w-4 h-4 text-zinc-400" />
+                          Rename Workspace
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExportChatHistory();
+                            setActiveNavMenu(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] hover:text-white flex items-center gap-2 font-medium"
+                        >
+                          <FileText className="w-4 h-4 text-zinc-400" />
+                          Export Chat History
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleClearWorkspaceChat();
+                            setActiveNavMenu(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] text-red-400 hover:text-red-300 flex items-center gap-2 font-medium border-t border-[#27272a]/40 mt-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Clear Chat Room
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -593,14 +659,14 @@ export default function App() {
                     e.stopPropagation();
                     setActiveNavMenu(activeNavMenu === "database" ? null : "database");
                   }}
-                  className={`hover:text-white cursor-pointer transition py-0.5 px-1.5 rounded font-medium ${
+                  className={`hover:text-white cursor-pointer transition py-1 px-2.5 rounded font-bold text-sm tracking-wide ${
                     activeNavMenu === "database" ? "text-white bg-[#27272a]" : ""
                   }`}
                 >
                   Database
                 </span>
                 {activeNavMenu === "database" && (
-                  <div className="absolute left-0 mt-1.5 w-52 bg-[#121214] border border-[#27272a] rounded-lg shadow-xl py-1 z-50 text-xs text-[#e4e4e7]" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute left-0 mt-2.5 w-60 bg-[#121214] border border-[#27272a] rounded-lg shadow-xl py-1 z-50 text-xs text-[#e4e4e7]" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -611,10 +677,10 @@ export default function App() {
                         }
                         setActiveNavMenu(null);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-[#27272a] hover:text-white flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] hover:text-white flex items-center gap-2 font-medium"
                     >
                       <Database className="w-4 h-4 text-zinc-400" />
-                      Connect SQL Database
+                      Connect SQL Database...
                     </button>
                     <button
                       onClick={(e) => {
@@ -622,7 +688,7 @@ export default function App() {
                         alert("DuckDB memory sandbox database is active for raw data analysis queries.");
                         setActiveNavMenu(null);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-[#27272a] hover:text-white flex items-center gap-2"
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-[#27272a] hover:text-white flex items-center gap-2 font-medium"
                     >
                       <Terminal className="w-4 h-4 text-zinc-400" />
                       DuckDB Sandbox Info
@@ -631,36 +697,19 @@ export default function App() {
                 )}
               </div>
 
-              {/* Help Dropdown Trigger */}
+              {/* Help Trigger */}
               <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <span 
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveNavMenu(activeNavMenu === "help" ? null : "help");
+                    setShowHelpModal(true);
+                    setActiveNavMenu(null);
                   }}
-                  className={`hover:text-white cursor-pointer transition py-0.5 px-1.5 rounded font-medium ${
-                    activeNavMenu === "help" ? "text-white bg-[#27272a]" : ""
-                  }`}
+                  className="hover:text-white cursor-pointer transition py-1 px-2.5 rounded font-bold text-sm tracking-wide"
                 >
                   Help
                 </span>
-                {activeNavMenu === "help" && (
-                  <div className="absolute left-0 mt-1.5 w-48 bg-[#121214] border border-[#27272a] rounded-lg shadow-xl py-1 z-50 text-xs text-[#e4e4e7]" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        alert("Autonomous Data Agent Workflow:\n1. Import dataset or Connect SQL DB.\n2. Verify the column schemas.\n3. Query DuckDB using normal text questions.\n4. View results & graphs automatically.");
-                        setActiveNavMenu(null);
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-[#27272a] hover:text-white flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4 text-zinc-400" />
-                      Workflow Guide
-                    </button>
-                  </div>
-                )}
               </div>
-
             </div>
           </div>
         </div>
@@ -1648,6 +1697,58 @@ export default function App() {
                   Create Workspace
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showHelpModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[150] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#121214] border border-[#27272a] rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#27272a]">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-white" />
+                <h3 className="text-lg font-bold text-white">Autonomous Data Agent Guide</h3>
+              </div>
+              <button 
+                onClick={() => setShowHelpModal(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded hover:bg-[#1c1c1f]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4 text-sm text-zinc-300 leading-relaxed max-h-[400px] overflow-y-auto pr-1">
+              <div>
+                <h4 className="font-bold text-white mb-1">1. Setup your Workspace</h4>
+                <p className="text-xs text-zinc-400">
+                  Upload a dataset (CSV, JSON, Excel) using the drag-and-drop zone, or enter connection credentials for a PostgreSQL/MySQL database.
+                </p>
+              </div>
+              <div>
+                <h4 className="font-bold text-white mb-1">2. Run Calculations & Visualizations</h4>
+                <p className="text-xs text-zinc-400">
+                  Ask natural language questions. The AI agent compiles Python code, validates it inside a secure Docker execution sandbox, and registers output tables or visualization charts.
+                </p>
+              </div>
+              <div>
+                <h4 className="font-bold text-white mb-1">3. Redesigned Visual Analytics Pane</h4>
+                <p className="text-xs text-zinc-400">
+                  Click <strong>Code</strong> to expand the script, <strong>Discuss</strong> to focus and reply to a chart context, or <strong>Save</strong> to download the chart directly.
+                </p>
+              </div>
+              <div>
+                <h4 className="font-bold text-white mb-1">4. Rate Limits & Token Saving</h4>
+                <p className="text-xs text-zinc-400">
+                  Click the **Stop** button next to the input bar to cancel any active query. Large data outputs are automatically truncated to prevent unnecessary token usage.
+                </p>
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 text-xs font-bold rounded-lg transition"
+              >
+                Got it
+              </button>
             </div>
           </div>
         </div>

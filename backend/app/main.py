@@ -105,6 +105,17 @@ async def delete_session(session_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/api/sessions/{session_id}/messages")
+async def clear_session_messages(session_id: str):
+    try:
+        if not db_service.client:
+            db_service.mock_messages[session_id] = []
+        else:
+            db_service.client.table("messages").delete().eq("session_id", session_id).execute()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/sessions/{session_id}/upload")
 async def upload_dataset(session_id: str, file: UploadFile = File(...)):
     # 1. Validate file extension
