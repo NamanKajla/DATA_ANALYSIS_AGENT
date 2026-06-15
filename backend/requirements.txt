@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+duckdb
+groq
+python-dotenv
+supabase
+pydantic
+pydantic-settings
+python-multipart
+httpx
+pytest
+sqlalchemy
+psycopg2-binary

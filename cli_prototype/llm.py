@@ -11,10 +11,19 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 
 def route_question(question: str, history: list) -> str:
     """Identifies conversational intent while looking at history context."""
+    system_prompt = (
+        "You are a routing classification assistant. Classify the user's input into exactly ONE category token:\n"
+        "- 'DATA_QUERY': If the user is asking for calculations, metrics (mean, median, count, sum, min, max), data analysis, data aggregation, "
+        "filtering, grouping, visualizations/plots, or general data manipulation that requires running code on the loaded dataset.\n"
+        "- 'CHIT_CHAT': Basic greetings (hello, hi, how are you), thanking the agent (thanks, thank you), or off-topic conversation.\n"
+        "- 'CLARIFICATION': Questions about the application itself, how to use it, or general questions about what columns or types "
+        "exist in the dataset schema, without requesting computations/calculations on the data.\n\n"
+        "Reply with ONLY the token string ('DATA_QUERY', 'CHIT_CHAT', or 'CLARIFICATION') and nothing else."
+    )
     messages = [
         {
             "role": "system",
-            "content": "Classify the input into exactly ONE category token: 'DATA_QUERY', 'CHIT_CHAT', or 'CLARIFICATION'. Reply with only the token string.",
+            "content": system_prompt,
         }
     ]
     
