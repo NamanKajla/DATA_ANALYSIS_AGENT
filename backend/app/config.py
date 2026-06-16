@@ -2,8 +2,12 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
 
-# Load from .env file at the workspace root if it exists
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../../.env"))
+# Load from .env file at the backend directory if it exists, otherwise workspace root
+backend_env = os.path.join(os.path.dirname(__file__), "../.env")
+if os.path.exists(backend_env):
+    load_dotenv(dotenv_path=backend_env)
+else:
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../../.env"))
 
 class Settings(BaseSettings):
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")

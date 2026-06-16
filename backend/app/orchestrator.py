@@ -189,6 +189,20 @@ def process_query(session_id: str, question: str, schema: dict, dataset_local_pa
     """
     history = db_service.get_messages(session_id)
     
+    # Filter out failed query turns from history to prevent context contamination
+    filtered_history = []
+    i = 0
+    while i < len(history):
+        if (i < len(history) - 1 and 
+            history[i]["role"] == "user" and 
+            history[i+1]["role"] == "assistant" and 
+            history[i+1]["content"] == settings.FALLBACK_ERROR_MESSAGE):
+            i += 2
+        else:
+            filtered_history.append(history[i])
+            i += 1
+    history = filtered_history
+    
     # 1. Intent Classification
     intent = route_question(question, history)
     
