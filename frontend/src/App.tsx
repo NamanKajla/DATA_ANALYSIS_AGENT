@@ -105,6 +105,7 @@ export default function App() {
   const [activeNavMenu, setActiveNavMenu] = useState<"file" | "database" | "help" | null>(null);
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
   
+  const [hoveredColumnAnomaly, setHoveredColumnAnomaly] = useState<string | null>(null);
   const [selectedDiagram, setSelectedDiagram] = useState<{
     id: string;
     chartUrl: string;
@@ -225,7 +226,8 @@ export default function App() {
     }
   }, [selectedSessionId]);
 
-  // Scroll to bottom of chat
+  // Load preview data when dataset changes
+// Scroll to bottom of chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isQuerying]);
@@ -974,15 +976,26 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                 {dataset && dataset.schema_json ? (
                   <div className="space-y-5">
-                    <div className="flex items-center gap-2 mb-4 bg-[#1c1c1f] p-3 rounded-lg border border-[#27272a]">
-                      <FileText className="w-5 h-5 text-zinc-300" />
-                      <div>
-                        <div className="text-white text-sm font-medium truncate max-w-[200px]">
-                          {dataset.file_name}
+                    <div 
+                      onClick={() => window.open(`${API_BASE}/sessions/${selectedSessionId}/dataset/view`, '_blank')}
+                      className="flex items-center justify-between gap-2 mb-4 bg-[#1c1c1f] p-3 rounded-lg border border-[#27272a] hover:border-zinc-500 hover:bg-[#202024] relative group cursor-pointer transition-all duration-300"
+                      title="Open dataset in new tab"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-5 h-5 text-zinc-300 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-white text-sm font-medium truncate max-w-[150px]">
+                            {dataset.file_name}
+                          </div>
+                          <div className="text-xs text-zinc-400">
+                            {dataset.schema_json.total_rows?.toLocaleString() || "0"} total rows loaded
+                          </div>
                         </div>
-                        <div className="text-xs text-zinc-400">
-                          {dataset.schema_json.total_rows?.toLocaleString() || "0"} total rows loaded
-                        </div>
+                      </div>
+                      
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 bg-zinc-800 border border-zinc-700 px-2 py-1 rounded text-[9px] text-zinc-300 font-semibold uppercase tracking-wider shrink-0">
+                        <span>Open</span>
+                        <ChevronRight className="w-3 h-3" />
                       </div>
                     </div>
 
@@ -1004,6 +1017,8 @@ export default function App() {
                           <div 
                             key={col} 
                             onClick={() => setSelectedStatsCol(selectedStatsCol === col ? null : col)}
+                            onMouseEnter={() => setHoveredColumnAnomaly(col)}
+                            onMouseLeave={() => setHoveredColumnAnomaly(null)}
                             className={`p-3.5 rounded-xl border transition-all duration-300 cursor-pointer relative flex flex-col group ${
                               selectedStatsCol === col 
                                 ? "bg-[#1d1d22] border-amber-500 shadow-md shadow-amber-500/5" 
@@ -1032,18 +1047,6 @@ export default function App() {
                                 {dtype}
                               </span>
                             </div>
-
-                            {hasAnomaly && (
-                              <div className="absolute left-[102%] top-1/2 -translate-y-1/2 w-64 bg-[#121214] border border-yellow-850 p-3 rounded-lg shadow-xl text-yellow-300 text-xs leading-normal z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <div className="flex items-start gap-2">
-                                  <AlertTriangle className="w-4 h-4 shrink-0 text-yellow-400 mt-0.5" />
-                                  <div>
-                                    <div className="font-bold text-[10px] uppercase tracking-wider text-amber-400 mb-1">Anomaly Detected</div>
-                                    <span>{anomaly}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
 
                             {/* Collateral Equal-spaced Grid for Descriptive Statistics + Null Rate */}
                             {selectedStatsCol === col && (
@@ -1120,7 +1123,7 @@ export default function App() {
                 )}
               </div>
             </div>
-
+            
             {/* PANE 2: MIDDLE CONVERSATIONAL CHAT (Resizes dynamically) */}
             <div className="flex-1 min-w-[30%] border-r border-[#27272a] bg-[#09090b] flex flex-col overflow-hidden">
               <div className="p-4 border-b border-[#27272a] bg-[#121214] flex items-center justify-between">
@@ -1250,6 +1253,31 @@ export default function App() {
                   )}
                 </div>
               </form>
+              {/* Anomalies Bottom Drawer */}
+              {hoveredColumnAnomaly && dataset && dataset.schema_json && (
+                (() => {
+                  const col = hoveredColumnAnomaly;
+                  const anomaly = dataset.schema_json.anomalies?.[col] || "No statistical anomalies detected.";
+                  
+                  return (
+                    <div 
+                      className="absolute bottom-0 left-0 right-0 h-[140px] bg-[#1a1410]/95 backdrop-blur-md border-t border-amber-600/50 shadow-2xl z-40 transition-all duration-300 transform translate-y-0 flex flex-col p-4 animate-slide-up"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+                        <div className="space-y-1">
+                          <div className="text-xs font-bold text-amber-400 uppercase tracking-wider font-mono">
+                            Anomaly Status &mdash; Column "{col}"
+                          </div>
+                          <p className="text-sm text-amber-200/90 leading-relaxed font-sans">
+                            {anomaly}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
             </div>
 
             {/* PANE 3: RIGHT VISUALS PERSISTENT VIEWPORT */}

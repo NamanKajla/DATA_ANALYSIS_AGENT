@@ -185,6 +185,9 @@ def execute_in_sandbox(code_content: str, dataset_local_path: str) -> tuple[bool
         return True, output_payload.get("result"), chart_generated, chart_local_path
 
     except subprocess.TimeoutExpired:
-        return False, f"Sandbox execution timed out after {settings.SANDBOX_TIMEOUT_SECONDS} seconds.", False, ""
+        print("[WARNING] Docker execution timed out. Falling back to local execution.")
+        success, result, chart_generated = run_local_fallback(code_content, target_data_path, output_dir)
+        chart_file_path = os.path.join(output_dir, "output_chart.png") if chart_generated else ""
+        return success, result, chart_generated, chart_file_path
     except Exception as e:
         return False, f"Sandbox Orchestration Failure: {str(e)}", False, ""

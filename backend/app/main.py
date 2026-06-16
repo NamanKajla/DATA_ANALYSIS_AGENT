@@ -191,6 +191,154 @@ async def get_session_dataset(session_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/sessions/{session_id}/dataset/preview")
+async def get_dataset_preview(session_id: str):
+    try:
+        dataset = db_service.get_dataset_by_session(session_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="No dataset uploaded for this session.")
+        
+        file_name = dataset.get("file_name")
+        s3_path = dataset.get("s3_path")
+        local_path = get_local_dataset_path(session_id, file_name)
+        
+        download_dataset_if_missing(s3_path, local_path)
+        
+        ext = os.path.splitext(local_path)[-1].lower()
+        if ext == ".csv":
+            df = pd.read_csv(local_path, nrows=15)
+        elif ext == ".json":
+            df = pd.read_json(local_path)
+            df = df.head(15)
+        elif ext in [".xls", ".xlsx"]:
+            df = pd.read_excel(local_path, nrows=15)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported dataset format.")
+            
+        # Convert NaN/Infinity values to None for JSON compliance
+        df = df.replace({pd.NA: None})
+        df = df.where(pd.notnull(df), None)
+        
+        return {
+            "columns": list(df.columns),
+            "rows": df.to_dict(orient="records")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/sessions/{session_id}/dataset/view")
+async def get_dataset_view(session_id: str):
+    from fastapi.responses import HTMLResponse
+    try:
+        dataset = db_service.get_dataset_by_session(session_id)
+        if not dataset:
+            return HTMLResponse("<h3>No dataset uploaded for this session.</h3>", status_code=404)
+        
+        file_name = dataset.get("file_name")
+        s3_path = dataset.get("s3_path")
+        local_path = get_local_dataset_path(session_id, file_name)
+        
+        download_dataset_if_missing(s3_path, local_path)
+        
+        ext = os.path.splitext(local_path)[-1].lower()
+        if ext == ".csv":
+            df = pd.read_csv(local_path, nrows=100)
+        elif ext == ".json":
+            df = pd.read_json(local_path).head(100)
+        elif ext in [".xls", ".xlsx"]:
+            df = pd.read_excel(local_path, nrows=100)
+        else:
+            return HTMLResponse("<h3>Unsupported file format.</h3>", status_code=400)
+            
+        html_table = df.to_html(classes="table-preview", index=False, na_rep="null")
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Dataset View - {file_name}</title>
+            <style>
+                body {{
+                    background-color: #09090b;
+                    color: #e4e4e7;
+                    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    padding: 24px;
+                    margin: 0;
+                }}
+                .header {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 20px;
+                    border-bottom: 1px solid #27272a;
+                    padding-bottom: 12px;
+                }}
+                h1 {{
+                    font-size: 1.25rem;
+                    margin: 0;
+                    font-weight: 600;
+                    color: #ffffff;
+                }}
+                .subtitle {{
+                    font-size: 0.8rem;
+                    color: #a1a1aa;
+                }}
+                .table-container {{
+                    overflow-x: auto;
+                    border: 1px solid #27272a;
+                    border-radius: 8px;
+                    background-color: #121214;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 0.85rem;
+                    text-align: left;
+                    font-family: monospace;
+                }}
+                th {{
+                    background-color: #18181b;
+                    color: #d4d4d8;
+                    padding: 10px 12px;
+                    font-weight: 600;
+                    border-bottom: 1px solid #27272a;
+                    border-right: 1px solid #27272a;
+                }}
+                td {{
+                    padding: 8px 12px;
+                    border-bottom: 1px solid #27272a;
+                    border-right: 1px solid #27272a;
+                    color: #a1a1aa;
+                    max-width: 250px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }}
+                tr:hover {{
+                    background-color: #1c1c1f;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #141417;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div>
+                    <h1>{file_name}</h1>
+                    <div class="subtitle">Showing first 100 rows &bull; Total rows: {dataset.get("schema_json", {}).get("total_rows", "unknown")}</div>
+                </div>
+            </div>
+            <div class="table-container">
+                {html_table}
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=200)
+    except Exception as e:
+        return HTMLResponse(f"<h3>Error rendering preview: {str(e)}</h3>", status_code=500)
 
 @app.get("/api/sessions/{session_id}/messages")
 async def get_session_messages(session_id: str):

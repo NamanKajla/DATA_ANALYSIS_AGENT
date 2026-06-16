@@ -94,6 +94,7 @@ def get_plan(question: str, schema: dict, history: list, error_feedback: str = N
     9. COMPLEX STRING FORMATS: If a column contains comma-separated values (e.g., "1001, 1002, 1003"), do not apply arithmetic functions (like AVG or SUM) directly in SQL. Instead, load the column using `con.sql(...)` into a Pandas DataFrame, parse/split the strings in Python to extract individual values, and perform your calculation in Python.
     10. SEABORN DATA RULE: When using seaborn plotting functions (like `sns.barplot`, `sns.lineplot`, `sns.scatterplot`, etc.), you MUST pass the pandas DataFrame containing the columns as the `data` parameter (e.g. `sns.barplot(x="Brand", y="Price", data=result)`). Do not call seaborn plotting methods without passing the `data` parameter.
     11. MATPLOTLIB PLOTTING RULE: When using `plt.subplots()`, it returns a tuple `(fig, ax)`. You MUST call plotting methods on the axis object `ax` (e.g., `ax.plot(...)`, `ax.bar(...)`), not on the axis tuple or figure object.
+    12. HIGH CARDINALITY RULE: If a column has high cardinality (more than 15-20 unique values) and you are plotting a bar chart, count plot, or other categorical plot, you MUST limit it to the top 10-15 categories (e.g. using `LIMIT 15` in SQL or `.head(15)` in Pandas) to ensure the plot is clean, readable, and executes quickly. Never attempt to plot categorical charts with dozens, hundreds, or thousands of categories, as this will hang the sandbox container or cause out-of-memory crashes.
     
     Dataset Auto-Profile Summary (columns, types, nulls):
     {schema}
@@ -238,6 +239,7 @@ def process_query(session_id: str, question: str, schema: dict, dataset_local_pa
             
             if success:
                 break
+            else:
                 error_feedback = str(result_val)
                 print(f"[SANDBOX EXECUTION ERROR] Attempt {attempt + 1} failed:\n{error_feedback}")
         except Exception as e:
