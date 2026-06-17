@@ -527,10 +527,12 @@ export default function App() {
     }
 
     let connectionString = "";
+    const encodedUser = encodeURIComponent(dbUser);
+    const encodedPass = encodeURIComponent(dbPass);
     if (dbType === "postgresql") {
-      connectionString = `postgresql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+      connectionString = `postgresql://${encodedUser}:${encodedPass}@${dbHost}:${dbPort}/${dbName}`;
     } else if (dbType === "mysql") {
-      connectionString = `mysql+pymysql://${dbUser}:${dbPass}@${dbHost}:${dbPort}/${dbName}`;
+      connectionString = `mysql+pymysql://${encodedUser}:${encodedPass}@${dbHost}:${dbPort}/${dbName}`;
     }
 
     setIsConnectingDb(true);
@@ -1643,19 +1645,17 @@ export default function App() {
                 ) : (
                   messages.map((m, idx) => (
                     <div key={m.id || `msg-${idx}`} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
-                      {m.role === "user" && m.content.startsWith("[Context: Regarding the chart") && (() => {
-                        const repliedChartUrl = findRepliedChartUrl(m.content);
+                      {m.role === "user" && m.chart_url && (() => {
+                        const repliedChartUrl = m.chart_url.startsWith("http") ? m.chart_url : `${API_BASE.replace('/api', '')}${m.chart_url}`;
                         return (
                           <div className="flex items-center gap-2 mb-1.5 self-end select-none">
                             <span className="text-zinc-500 text-sm font-semibold">↳</span>
-                            {repliedChartUrl && (
-                              <img 
-                                src={repliedChartUrl} 
-                                alt="Replied chart" 
-                                className="w-16 h-12 object-contain rounded-lg bg-black border border-[#27272a] shrink-0 cursor-zoom-in hover:scale-105 transition-transform"
-                                onClick={() => setZoomedChartUrl(repliedChartUrl)}
-                              />
-                            )}
+                            <img 
+                              src={repliedChartUrl} 
+                              alt="Replied chart" 
+                              className="w-16 h-12 object-contain rounded-lg bg-black border border-[#27272a] shrink-0 cursor-zoom-in hover:scale-105 transition-transform"
+                              onClick={() => setZoomedChartUrl(repliedChartUrl)}
+                            />
                           </div>
                         );
                       })()}
