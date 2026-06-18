@@ -290,9 +290,12 @@ def process_query(session_id: str, question: str, schema: dict, dataset_local_pa
     chart_url = None
     if chart_generated and chart_path and os.path.exists(chart_path):
         try:
+            import time
             with open(chart_path, "rb") as f:
                 chart_bytes = f.read()
-            storage_filename = f"{session_id}/chart_{attempt}.png"
+            # Use millisecond timestamp so every chart gets a unique filename
+            unique_id = int(time.time() * 1000)
+            storage_filename = f"{session_id}/chart_{unique_id}.png"
             db_service.upload_file("charts", storage_filename, chart_bytes, "image/png")
             # Store a stable path that redirects to a freshly signed URL dynamically
             chart_url = f"/api/charts/signed/{storage_filename}"
