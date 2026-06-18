@@ -10,6 +10,32 @@ from .validator import validate_generated_code
 # Initialize Groq Client
 client = Groq(api_key=settings.GROQ_API_KEY) if settings.GROQ_API_KEY else None
 
+# Model fallback chain — if primary model hits daily token limit (429), try next
+_MODEL_CHAIN = [
+    settings.MODEL_NAME,          # llama-3.3-70b-versatile (primary)
+    "llama-3.1-8b-instant",       # fast small model, separate quota
+    "gemma2-9b-it",               # Google Gemma, separate quota
+]
+
+def groq_call(**kwargs) -> any:
+    """Wrapper around client.chat.completions.create with automatic model fallback on 429."""
+    if not client:
+        raise RuntimeError("Groq client not initialized")
+    last_err = None
+    for model in _MODEL_CHAIN:
+        try:
+            kwargs["model"] = model
+            response = client.chat.completions.create(**kwargs)
+            if model != settings.MODEL_NAME:
+                print(f"[FALLBACK] Primary model rate-limited. Using: {model}")
+            return response
+        except Exception as e:
+            if "429" in str(e) or "rate_limit" in str(e).lower():
+                last_err = e
+                continue  # try next model
+            raise  # non-rate-limit error, propagate immediately
+    raise RuntimeError(f"All models rate-limited. Last error: {last_err}")
+
 def route_question(question: str, history: list) -> str:
     """Identifies user's conversational intent based on context."""
     if not client:
@@ -31,7 +57,7 @@ def route_question(question: str, history: list) -> str:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": question})
 
-    response = client.chat.completions.create(model=settings.MODEL_NAME, messages=messages, temperature=0)
+    response = groq_call(messages=messages, temperature=0)
     if response.usage:
         print(f"[Groq Token Usage - Route] Model: {response.model} | Prompt: {response.usage.prompt_tokens} | Completion: {response.usage.completion_tokens} | Total: {response.usage.total_tokens}")
     return response.choices[0].message.content.strip()
@@ -58,8 +84,7 @@ def handle_conversational(question: str, schema: dict, history: list) -> tuple[s
     messages.append({"role": "user", "content": question})
 
     try:
-        response = client.chat.completions.create(
-            model=settings.MODEL_NAME,
+        response = groq_call(
             response_format={"type": "json_object"},
             messages=messages,
             temperature=0.5
@@ -125,8 +150,7 @@ def get_plan(question: str, schema: dict, history: list, error_feedback: str = N
             "content": content_msg
         })
 
-    response = client.chat.completions.create(
-        model=settings.MODEL_NAME,
+    response = groq_call(
         response_format={"type": "json_object"},
         messages=messages,
         temperature=0
@@ -177,8 +201,7 @@ def explain_result(question: str, result: any, has_chart: bool) -> tuple[str, li
         user_content += "\nNote: A matching visual visualization file plot chart asset has been compiled."
 
     try:
-        response = client.chat.completions.create(
-            model=settings.MODEL_NAME,
+        response = groq_call(
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},
