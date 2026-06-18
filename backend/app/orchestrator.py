@@ -5,6 +5,7 @@ from groq import Groq
 from .config import settings
 from .sandbox import execute_in_sandbox
 from .database import db_service
+from .validator import validate_generated_code
 
 # Initialize Groq Client
 client = Groq(api_key=settings.GROQ_API_KEY) if settings.GROQ_API_KEY else None
@@ -12,8 +13,8 @@ client = Groq(api_key=settings.GROQ_API_KEY) if settings.GROQ_API_KEY else None
 def route_question(question: str, history: list) -> str:
     """Identifies user's conversational intent based on context."""
     if not client:
-        return "DATA_QUERY" # Default fallback for local testing
-        
+        return "DATA_QUERY"
+
     system_prompt = (
         "You are a routing classification assistant. Classify the user's input into exactly ONE category token:\n"
         "- 'DATA_QUERY': If the user is asking for calculations, metrics (mean, median, count, sum, min, max), data analysis, data aggregation, "
@@ -24,7 +25,7 @@ def route_question(question: str, history: list) -> str:
         "exist in the dataset schema, without requesting any actual data records, calculations, or unique values.\n\n"
         "Reply with ONLY the token string ('DATA_QUERY', 'CHIT_CHAT', or 'CLARIFICATION') and nothing else."
     )
-    
+
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-3:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
@@ -35,24 +36,23 @@ def route_question(question: str, history: list) -> str:
         print(f"[Groq Token Usage - Route] Model: {response.model} | Prompt: {response.usage.prompt_tokens} | Completion: {response.usage.completion_tokens} | Total: {response.usage.total_tokens}")
     return response.choices[0].message.content.strip()
 
+
 def handle_conversational(question: str, schema: dict, history: list) -> tuple[str, list[str]]:
     """Answers conversational or clarification queries without executing code."""
     if not client:
         return "I am ready to help you analyze your data. Please upload a dataset to begin.", ["How can I import a dataset?", "What operations can I perform?"]
-        
+
     system_prompt = f"""You are a helpful data analyst assistant. Chat with the user naturally. Dataset schema context: {schema}
-    
+
     You must output a JSON object matching this schema exactly:
     {{
       "reply": "Your conversational reply here",
       "follow_ups": ["Short follow-up question 1", "Short follow-up question 2"]
     }}
-    
+
     CRITICAL: The follow-up questions must be written from the USER's perspective asking the AI (e.g. "Can you compare...", "Show me...", "Explain why..."), NOT what the AI would ask the user.
     """
-    messages = [
-        {"role": "system", "content": system_prompt}
-    ]
+    messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-5:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": question})
@@ -71,17 +71,17 @@ def handle_conversational(question: str, schema: dict, history: list) -> tuple[s
     except Exception:
         return "I am ready to help you analyze your data.", ["What columns are in the dataset?", "Can you show statistics?"]
 
+
 def get_plan(question: str, schema: dict, history: list, error_feedback: str = None) -> dict:
     """Assembles Python scripts designed to execute on a DuckDB database connection."""
     if not client:
-        # Static local stub for fallback testing
         return {
             "python_code": "result = con.sql(\"SELECT * FROM df LIMIT 5\").df()",
             "explanation": "Query first 5 rows"
         }
-        
+
     system_prompt = f"""You are an elite automated Python data analyst agent. Write clean Python analytics scripts to process a DuckDB database.
-    
+
     CRITICAL ARCHITECTURE CONSTRAINTS:
     1. The source data frame structure is ALREADY loaded as a temporary view in the DuckDB connection under the name: `df`
     2. CRITICAL: Never write 'import duckdb', 'import pandas', 'import seaborn', or 'import matplotlib'. These libraries are already loaded in the environment namespace. Jump straight to using variables `con`, `sns`, or `plt`.
@@ -98,17 +98,21 @@ def get_plan(question: str, schema: dict, history: list, error_feedback: str = N
     13. DISCUSSION CONTEXT RULE: If the user's prompt is a follow-up discussing an existing chart context (starting with "[Context: Regarding the chart...]"):
         - Crucially, do NOT generate any matplotlib/seaborn plotting code (no plt or sns plot calls) UNLESS the user explicitly asks to modify the chart, redraw the chart, change the plot, or update the visualization.
         - If they are just asking a question about values, counts, averages, or calculations on the chart's data, calculate the numbers/result ONLY and store it in the `result` variable. Do NOT plot anything.
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> origin/pr/2
     Dataset Auto-Profile Summary (columns, types, nulls):
     {schema}
-    
+
     Your response must map explicitly to this JSON schema layout:
     {{
       "python_code": "Your formatted python code lines here",
       "explanation": "Brief structural description"
     }}
     """
-    
+
     messages = [{"role": "system", "content": system_prompt}]
     for msg in history[-6:]:
         if "code" not in msg:
@@ -129,8 +133,9 @@ def get_plan(question: str, schema: dict, history: list, error_feedback: str = N
     )
     if response.usage:
         print(f"[Groq Token Usage - Plan] Model: {response.model} | Prompt: {response.usage.prompt_tokens} | Completion: {response.usage.completion_tokens} | Total: {response.usage.total_tokens}")
-    
+
     return json.loads(response.choices[0].message.content)
+
 
 def clean_source_code(code: str) -> str:
     """Cleans code strings by removing markdown fragments and structural mis-indents."""
@@ -139,23 +144,24 @@ def clean_source_code(code: str) -> str:
     code = code.replace("```python", "").replace("```", "")
     return textwrap.dedent(code).strip()
 
+
 def explain_result(question: str, result: any, has_chart: bool) -> tuple[str, list[str], str]:
     """Compiles the narrative summary, calling out key insights, constraints, and follow-ups."""
     if not client:
         return f"Calculation completed successfully. Result: {result}", ["Can we run another query?", "Can you plot this?"], "A simple results visualization."
-        
+
     system_prompt = """Review the executed analytical data metrics and generate a concise and clear explanation.
-    
+
     You must output a JSON object matching this schema exactly:
     {
       "explanation": "A natural, conversational narrative explaining the findings. Use headings, bold text, or bullet points dynamically ONLY if they are helpful and appropriate for structuring the data (e.g. for listing categories or summarizing findings). Do not use boilerplate labels or rigid templates.",
       "chart_summary": "A 1-sentence description of the visual chart layout, trends, axes, and contents (only if a chart was generated, otherwise output empty string or N/A)",
       "follow_ups": ["Short follow-up question 1", "Short follow-up question 2"]
     }
-    
+
     CRITICAL: The follow-up questions must be written from the USER's perspective asking the AI (e.g. "Can you compare...", "Show me...", "Explain why..."), NOT what the AI would ask the user.
     """
-    
+
     str_result = str(result)
     if len(str_result) > 2000:
         str_result = str_result[:2000] + "\n... [Output truncated for conciseness] ..."
@@ -174,10 +180,9 @@ def explain_result(question: str, result: any, has_chart: bool) -> tuple[str, li
             ],
             temperature=0.2
         )
-        # Log token usage
         if response.usage:
             print(f"[Groq Token Usage - Explain] Model: {response.model} | Prompt: {response.usage.prompt_tokens} | Completion: {response.usage.completion_tokens} | Total: {response.usage.total_tokens}")
-            
+
         data = json.loads(response.choices[0].message.content)
         content = data.get("explanation", "Calculation completed successfully.")
         chart_summary = data.get("chart_summary", "")
@@ -192,24 +197,24 @@ def process_query(session_id: str, question: str, schema: dict, dataset_local_pa
     and narrative explanation synthesis.
     """
     history = db_service.get_messages(session_id)
-    
-    # Filter out failed query turns from history to prevent context contamination
+
+    # Filter out failed query turns from history
     filtered_history = []
     i = 0
     while i < len(history):
-        if (i < len(history) - 1 and 
-            history[i]["role"] == "user" and 
-            history[i+1]["role"] == "assistant" and 
+        if (i < len(history) - 1 and
+            history[i]["role"] == "user" and
+            history[i+1]["role"] == "assistant" and
             history[i+1]["content"] == settings.FALLBACK_ERROR_MESSAGE):
             i += 2
         else:
             filtered_history.append(history[i])
             i += 1
     history = filtered_history
-    
+
     # 1. Intent Classification
     intent = route_question(question, history)
-    
+
     if intent in ["CHIT_CHAT", "CLARIFICATION"]:
         ai_reply, follow_ups = handle_conversational(question, schema, history)
         db_service.save_message(session_id, "user", question, chart_url=user_chart_url)
@@ -222,33 +227,47 @@ def process_query(session_id: str, question: str, schema: dict, dataset_local_pa
             "follow_ups": follow_ups
         }
 
-    # 2. Code Generation & Execution Sisyphus loop
+    # 2. Code Generation & Execution loop
     error_feedback = None
     success = False
     result_val = None
     chart_generated = False
     chart_path = ""
     cleaned_code = ""
-    
+    attempt = 0
+
     for attempt in range(settings.MAX_RETRIES):
         try:
-            # Generate code plan
             plan = get_plan(question, schema, history, error_feedback)
             raw_code = plan.get("python_code", "")
             cleaned_code = clean_source_code(raw_code)
-            
-            # Execute code inside the sandbox
+
+            # -------------------------------------------------------
+            # Security gate: validate before every execution attempt
+            # -------------------------------------------------------
+            validation = validate_generated_code(cleaned_code)
+            if not validation.is_safe:
+                # Treat validation failure as a correctable error so the
+                # LLM gets a chance to rewrite the code on the next attempt.
+                error_feedback = (
+                    f"Your generated code was blocked by a security validator: {validation.reason}. "
+                    "Please rewrite the code without using forbidden imports, calls, or attribute access."
+                )
+                print(f"[SECURITY] Code blocked on attempt {attempt + 1}: {validation.reason}")
+                continue
+
             success, result_val, chart_generated, chart_path = execute_in_sandbox(cleaned_code, dataset_local_path)
-            
+
             if success:
                 break
             else:
                 error_feedback = str(result_val)
                 print(f"[SANDBOX EXECUTION ERROR] Attempt {attempt + 1} failed:\n{error_feedback}")
+
         except Exception as e:
             error_feedback = str(e)
             print(f"[ORCHESTRATOR LOOP EXCEPTION]: {error_feedback}")
-            
+
     if not success:
         error_msg = settings.FALLBACK_ERROR_MESSAGE
         # Enforce retry limit fallback error message
@@ -260,31 +279,32 @@ def process_query(session_id: str, question: str, schema: dict, dataset_local_pa
             "content": error_msg,
             "generated_code": None,
             "chart_url": None,
-            "follow_ups": ["What columns are available in this dataset?", "Can you show me a summary of the dataset structure?", "Provide a statistical summary of the table"]
+            "follow_ups": [
+                "What columns are available in this dataset?",
+                "Can you show me a summary of the dataset structure?",
+                "Provide a statistical summary of the table"
+            ]
         }
 
-    # 3. Save generated plot (if any) to Supabase Storage
+    # 3. Upload chart
     chart_url = None
     if chart_generated and chart_path and os.path.exists(chart_path):
         try:
-            # Load bytes
             with open(chart_path, "rb") as f:
                 chart_bytes = f.read()
-            # Upload to Storage bucket
             storage_filename = f"{session_id}/chart_{attempt}.png"
             db_service.upload_file("charts", storage_filename, chart_bytes, "image/png")
-            # Generate temporary signed URL
-            chart_url = db_service.generate_signed_url("charts", storage_filename)
+            # Store a stable path that redirects to a freshly signed URL dynamically
+            chart_url = f"/api/charts/signed/{storage_filename}"
         except Exception as upload_err:
             print(f"Failed to upload chart: {upload_err}")
 
-    # 4. Generate plain-English explanation
+    # 4. Generate explanation
     narrative, follow_ups, chart_summary = explain_result(question, result_val, chart_generated)
     
     # Save session records
     db_service.save_message(session_id, "user", question, chart_url=user_chart_url)
     saved_msg = db_service.save_message(session_id, "assistant", narrative, cleaned_code, chart_url, follow_ups, chart_summary)
-    
     return {
         "id": saved_msg.get("id"),
         "role": "assistant",

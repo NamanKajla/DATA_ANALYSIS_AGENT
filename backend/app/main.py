@@ -145,16 +145,31 @@ async def upload_dataset(session_id: str, file: UploadFile = File(...)):
     ext = os.path.splitext(file.filename)[-1].lower()
     if ext not in [".csv", ".json", ".xls", ".xlsx"]:
         raise HTTPException(status_code=400, detail="Unsupported file format. Please upload CSV, JSON, or Excel.")
-        
-    # 2. Save file locally for profiling
+
+    # 2. Read file into memory first so we can check size before touching disk
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read uploaded file: {e}")
+
+    # 3. Enforce maximum file size
+    if len(file_bytes) > settings.MAX_UPLOAD_SIZE_BYTES:
+        max_mb = settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum allowed size is {max_mb} MB. "
+                   f"Your file is {len(file_bytes) // (1024 * 1024)} MB."
+        )
+
+    # 4. Write to local cache
     local_path = get_local_dataset_path(session_id, file.filename)
     try:
         with open(local_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_bytes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write local cache: {e}")
 
-    # 3. Profile data using DuckDB
+    # 5. Profile data using DuckDB
     try:
         profile = profile_data(local_path)
     except Exception as e:
@@ -162,17 +177,15 @@ async def upload_dataset(session_id: str, file: UploadFile = File(...)):
             os.remove(local_path)
         raise HTTPException(status_code=400, detail=f"Failed to profile dataset: {e}")
 
-    # 4. Upload raw file to Supabase Storage
+    # 6. Upload raw file to Supabase Storage
     base_id = session_id.split(":")[0]
     try:
-        with open(local_path, "rb") as f:
-            file_bytes = f.read()
         storage_path = f"{base_id}/dataset{ext}"
         db_service.upload_file("datasets", storage_path, file_bytes, file.content_type or "application/octet-stream")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to store file: {e}")
 
-    # 5. Save dataset metadata in Postgres
+    # 7. Save dataset metadata in Postgres
     try:
         dataset = db_service.create_dataset(session_id, file.filename, storage_path, profile)
         return {
