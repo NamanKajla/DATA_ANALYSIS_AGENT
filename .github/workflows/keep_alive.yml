@@ -1,0 +1,22 @@
+name: Keep HF Space Alive
+
+on:
+  schedule:
+    # Runs every 24 hours at 08:00 UTC (1:30 PM IST)
+    - cron: "0 8 * * *"
+  workflow_dispatch: # Allow manual trigger too
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping HuggingFace Space
+        run: |
+          echo "Pinging HF Space to keep it warm..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://anzarahmad-data-analysis-agent.hf.space/health)
+          echo "Response status: $STATUS"
+          if [ "$STATUS" -eq 200 ]; then
+            echo "Space is alive!"
+          else
+            echo "Warning: Space returned status $STATUS"
+          fi

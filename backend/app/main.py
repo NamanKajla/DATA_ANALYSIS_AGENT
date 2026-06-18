@@ -27,6 +27,11 @@ app.add_middleware(
 TEMP_DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../temp_datasets"))
 os.makedirs(TEMP_DATA_DIR, exist_ok=True)
 
+@app.get("/health")
+async def health_check():
+    """Lightweight ping endpoint to keep the HF Space warm."""
+    return {"status": "ok"}
+
 class SessionCreate(BaseModel):
     title: str
 
