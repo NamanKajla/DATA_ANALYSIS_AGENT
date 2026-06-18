@@ -1965,6 +1965,18 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-col space-y-4">
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-4 border border-zinc-800 bg-[#1c1c1f]/20 rounded-2xl">
+                      <Sparkles className="w-6 h-6 text-emerald-450 mb-2" />
+                      <h4 className="text-white font-semibold text-sm mb-1">Demo Dataset</h4>
+                      <p className="text-[10px] text-zinc-400 max-w-[180px] mb-3">Load sample Titanic data</p>
+                      <button 
+                        onClick={handleCreateDemoSession}
+                        disabled={isCreatingDemoSession}
+                        className="px-4 py-1.5 bg-[#1c1c1f] border border-[#3f3f46] text-zinc-200 text-xs font-bold rounded-lg hover:bg-[#27272a] hover:text-white transition disabled:opacity-50"
+                      >
+                        {isCreatingDemoSession ? "Loading..." : "Load Demo"}
+                      </button>
+                    </div>
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed border-zinc-700 hover:border-zinc-500 rounded-2xl bg-[#1c1c1f]/40 transition-all duration-300">
                       <Upload className="w-6 h-6 text-zinc-400 mb-2" />
                       <h4 className="text-white font-semibold text-sm mb-1">Import Dataset</h4>
@@ -2012,7 +2024,7 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto p-4 pb-20 space-y-4">
                 {/* Default welcome guide chat background when no session is selected */}
-                {showWelcome && (!selectedSessionId || messages.length === 0) ? (
+                {(!selectedSessionId || (showWelcome && messages.length === 0)) ? (
                   <div className="space-y-4 animate-fade-in">
                     <div className="bg-[#1c1c1f] border border-[#27272a] rounded-2xl p-4 text-sm text-zinc-300 space-y-2 relative">
                       <button
