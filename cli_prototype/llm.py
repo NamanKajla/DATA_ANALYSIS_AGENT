@@ -60,11 +60,12 @@ def get_plan(question: str, schema: dict, history: list, error_feedback: str = N
 CRITICAL ARCHITECTURE CONSTRAINTS:
 1. The source data frame target structure is ALREADY instantiated under the exact namespace: `df`
 2. CRITICAL: Never write 'import pandas', 'import seaborn', or 'import matplotlib'. These libraries are already loaded in the environment namespace. Jump straight to using variables `df`, `sns`, or `plt`.
-3. You MUST save the final computed data object (e.g., a DataFrame, a Series, a number, a list, or a dictionary) into a variable named exactly `result` (e.g., `result = df.describe()`). 
-4. WARNING: Do NOT write long conversational text sentences or narrative paragraphs inside the python code or assign them to `result`. Keep the python code strictly focused on data calculations and plotting.
-5. If a visualization (chart) is useful for this query, write matplotlib/seaborn code to construct it. Do NOT call `plt.show()`. The sandbox handles saving it.
-6. MULTIPLE PLOTS RULE: If you need to generate more than one chart to answer a question, do NOT call `plt.figure()` multiple times. Instead, combine them into a single image canvas using subplots (e.g., `plt.subplot(nrows, ncols, index)`) so all visual elements are captured together in the final saved file.
-7. JSON STRUCTURE RULE: Ensure your script is a safely formatted string asset inside the JSON. Do not forget to close the "python_code" string value with a double quote (") and a comma (,) before opening the "explanation" key structure.
+3. You MUST save the final computed data object (e.g., a DataFrame, a Series, a number, a list, or a dictionary) into a variable named exactly `result` (e.g., `result = df.describe()`).
+4. If the `result` is a DataFrame with more than 25 rows, you MUST truncate it to the first 25 rows (e.g., `result = result.head(25)`).
+5. WARNING: Do NOT write long conversational text sentences or narrative paragraphs inside the python code or assign them to `result`. Keep the python code strictly focused on data calculations and plotting.
+6. If a visualization (chart) is useful for this query, write matplotlib/seaborn code to construct it. Do NOT call `plt.show()`. The sandbox handles saving it.
+7. MULTIPLE PLOTS RULE: If you need to generate more than one chart to answer a question, do NOT call `plt.figure()` multiple times. Instead, combine them into a single image canvas using subplots (e.g., `plt.subplot(nrows, ncols, index)`) so all visual elements are captured together in the final saved file.
+8. JSON STRUCTURE RULE: Ensure your script is a safely formatted string asset inside the JSON. Do not forget to close the "python_code" string value with a double quote (") and a comma (,) before opening the "explanation" key structure.
 
 Dataset Auto-Profile Summary:
 {schema}
